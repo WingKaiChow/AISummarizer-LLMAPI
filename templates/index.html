@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Summarizer</title>
+    <style>
+        body { font-family: sans-serif; }
+        #urls { width: 800px; }
+        #urls textarea { height: 100px; width: 100%; margin-bottom: 5px; resize: vertical; }
+        #urls button { margin-right: 5px; }
+        #results { margin-top: 20px; border-collapse: collapse; }
+        #results th, #results td { border: 1px solid black; padding: 8px; }
+        .bullet-points { list-style-type: disc; padding-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>AI Summarizer</h1>
+    <div id="urls">
+        <textarea id="urlInput" placeholder="Enter URLs (one per line)"></textarea>
+        <button onclick="analyze()">Analyze</button>
+    </div>
+    <table id="results">
+        <tr>
+            <th>Name of Article</th>
+            <th>Summary of Article</th>
+            <th>URL of Article</th>
+            <th>Sentiment of Article</th>
+        </tr>
+    </table>
+
+    <script>
+        function analyze() {
+            let urls = document.getElementById('urlInput').value.split('\n').map(url => url.trim()).filter(url => url);
+            if (urls.length === 0) {
+                alert("Please add at least one URL.");
+                return;
+            }
+
+            console.log("Analyzing URLs:", urls);
+
+            fetch('http://127.0.0.1:5000/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ urls: urls })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Backend response:", data);
+                let resultsTable = document.getElementById('results');
+                resultsTable.innerHTML = `<tr><th>Name of Article</th><th>Summary of Article</th><th>URL of Article</th><th>Sentiment of Article</th></tr>`;
+                if (Array.isArray(data)) {
+                    data.forEach(result => {
+                        let row = resultsTable.insertRow();
+                        row.insertCell().textContent = result.name || "Article name not available";
+                        let summaryCell = row.insertCell();
+                        if (result.summary) {
+                            let summaryList = document.createElement('ul');
+                            summaryList.className = 'bullet-points';
+                            if (typeof result.summary === 'string') {
+                                result.summary.split('•').slice(1).forEach(item => { // Split by bullet point and skip the first empty item
+                                    let listItem = document.createElement('li');
+                                    listItem.textContent = item.trim();
+                                    summaryList.appendChild(listItem);
+                                });
+                            } else if (Array.isArray(result.summary)) {
+                                result.summary.forEach(item => {
+                                    let listItem = document.createElement('li');
+                                    listItem.textContent = item;
+                                    summaryList.appendChild(listItem);
+                                });
+                            }
+                            if (summaryList.children.length > 0) {
+                                summaryCell.appendChild(summaryList);
+                            } else {
+                                summaryCell.textContent = "Summary data is not available.";
+                            }
+                        } else {
+                            summaryCell.textContent = "Summary data is not available.";
+                        }
+                        row.insertCell().textContent = result.url || "URL not available";
+                        row.insertCell().textContent = result.sentiment || "Sentiment not available";
+                    });
+                } else if (data && data.error) {
+                    alert("Error: " + data.error);
+                } else {
+                    alert("An unexpected error occurred. Please check the backend response. The response data was: " + JSON.stringify(data));
+                }
+            })
+            .catch(error => {
+                alert('Error analyzing URLs: ' + error);
+            });
+        }
+    </script>
+</body>
+</html>
