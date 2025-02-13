@@ -70,7 +70,7 @@ def analyze_urls():
                 soup = BeautifulSoup(response.content, 'html.parser')
                 title = soup.title.string if soup.title else "No title found"
                 article_text = ' '.join(soup.get_text().split())
-                
+                print(f"config.LLM_API_KEY: {config.LLM_API_KEY}")
                 llmHeaders = {
                     "Authorization": f"Bearer {config.LLM_API_KEY}",
                     "Content-Type": "application/json"
