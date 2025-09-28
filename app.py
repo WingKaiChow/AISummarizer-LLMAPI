@@ -7,12 +7,17 @@ import os
 import re
 import config
 from dotenv import load_dotenv
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 LLM_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-LLM_API_MODEL = "google/gemini-flash-1.5-8b"
+LLM_API_MODEL = "x-ai/grok-4-fast:free"
 
 def parse_llm_response(json_response):
     try:
@@ -21,7 +26,6 @@ def parse_llm_response(json_response):
         
         # Extract the content from the first choice's message
         content = response_dict['choices'][0]['message']['content']
-        
         # Split the content by newlines to isolate Summary and Sentiment
         lines = content.split('\n')
         
@@ -46,8 +50,40 @@ def parse_llm_response(json_response):
         print(f"Error parsing response: {e}")
         return None
 
+def extract_dynamic(url):
+    """Dynamic extraction using Selenium."""
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36')
+    
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+    
+    try:
+        driver.get(url)
+        time.sleep(10)  # Wait for JS load
+        
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        title = soup.title.string.strip() if soup.title else "No title found"
+        
+        article_elem = (
+            soup.find('article') or 
+            soup.find('div', class_='c-post-content') or  # Global News specific
+            soup.find('div', class_='news-release-content') or 
+            soup.find('div', class_='content') or 
+            soup.find('div', id='content') or 
+            soup.body
+        )
+        text = ' '.join(article_elem.get_text().split()) if article_elem else "No article text found"
+        return title, text
+    finally:
+        driver.quit()
+
 @app.route('/analyze', methods=['POST'])
 def analyze_urls():
+
     try:
         data = request.get_json()
         urls = data.get('urls')
@@ -65,28 +101,32 @@ def analyze_urls():
                     'Connection': 'keep-alive',
                     'Upgrade-Insecure-Requests': '1',
                 }   
+
                 response = requests.get(url, headers=headers)
                 response.raise_for_status()
                 soup = BeautifulSoup(response.content, 'html.parser')
                 title = soup.title.string if soup.title else "No title found"
                 article_text = ' '.join(soup.get_text().split())
-                print(f"config.LLM_API_KEY: {config.LLM_API_KEY}")
+
+                if len(article_text) < 50:
+                    title, article_text = extract_dynamic(url)
+                
                 llmHeaders = {
                     "Authorization": f"Bearer {config.LLM_API_KEY}",
                     "Content-Type": "application/json"
                 }  
                 payload = {
-                    "model": "google/gemini-flash-1.5-8b",
+                    "model": LLM_API_MODEL,
                     "messages": [
                         {"role": "user", "content": f"""
                             Article content:
                             {article_text} 
 
-                            Please summarize this article in exactly 2-3 sentences using bullet points. Then, provide the sentiment of the summary with one of these words: positive, neutral, negative. Format your response like this:
+                            Please summarize this article in exactly 2-3 sentences using bullet points. Use ^ in front of each bullet points. Then, provide the sentiment of the summary with one of these words: positive, neutral, negative. Format your response like this:
                                 Summary:
-                                    • [Sentence 1]
-                                    • [Sentence 2]
-                                    • [Sentence 3] (optional)
+                                    ^ [Sentence 1]
+                                    ^ [Sentence 2]
+                                    ^ [Sentence 3] (optional)
 
                                 Sentiment: [Positive, Neutral, or Negative]"""
                         }]

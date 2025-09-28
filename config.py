@@ -7,3 +7,4 @@ def get_api_key():
     return api_key
 
 LLM_API_KEY = get_api_key()
+#print (LLM_API_KEY)

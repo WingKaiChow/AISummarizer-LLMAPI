@@ -58,7 +58,7 @@
                             let summaryList = document.createElement('ul');
                             summaryList.className = 'bullet-points';
                             if (typeof result.summary === 'string') {
-                                result.summary.split('•').slice(1).forEach(item => { // Split by bullet point and skip the first empty item
+                                result.summary.split('^').slice(1).forEach(item => { // Split by bullet point and skip the first empty item
                                     let listItem = document.createElement('li');
                                     listItem.textContent = item.trim();
                                     summaryList.appendChild(listItem);
