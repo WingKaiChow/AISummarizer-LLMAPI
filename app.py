@@ -66,7 +66,10 @@ def extract_dynamic(url):
         time.sleep(10)  # Wait for JS load
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        title = soup.title.string.strip() if soup.title else "No title found"
+        #print ("soup: ", soup )
+        #print (soup.find('h1', class_='headline').string.strip())
+        title = soup.find('h1', class_='headline').string.strip() if soup.find('h1', class_='headline') else soup.title.string.strip() if soup.title else "No title found"
+        #title = soup.title.string.strip() if soup.title else "No title found"
         
         article_elem = (
             soup.find('article') or 
